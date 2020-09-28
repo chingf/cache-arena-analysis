@@ -1,4 +1,6 @@
-data
-*.p
-__pycache__
-.ipynb_checkpoints
+figures/
+pickles/
+pickles-tmp/
+__pycache__/
+.ipynb_checkpoints/
+*.egg-info/

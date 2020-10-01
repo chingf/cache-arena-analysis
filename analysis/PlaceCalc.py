@@ -1,14 +1,14 @@
 import numpy as np
 from dataclasses import dataclass
 
-import analysis.mutual_info as mi
+import analysis.tuning_measures.mutual_info as mi
 import analysis.shuffle as shuffle
 from analysis.utils import get_fr, gen_2d_bins
 
 @dataclass
 class PlaceCalc(object):
     """
-    Calculates spatial information in either 1D (wedges) or 2D
+    Calculates spatial tuning in either 1D (wedges) or 2D
     """
 
     num_shuffles: int

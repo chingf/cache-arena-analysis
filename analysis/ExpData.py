@@ -16,12 +16,14 @@ class ExpData(object):
         visit_enters: (visits,) array; start frame of each visit
         visit_exits: (visits,) array; end frame of each visit
         visit_wedges: (visits,) array; wedge location of each visit
+        visit_was_retrieval: (visits,) array; whether visit was retrieval
+        visit_was_cache: (visits,) array; whether visit was cache
         cr_sites: (cr,) array: location of each cache/retrieval event
         cr_pokes: (cr,) array: frame of each cache/retrieval poke
         cr_enters: (cr,) array: frame of hop into cache/retrieval event
         cr_exits: (cr,) array: frame of hop out of cache/retrieval event
-        was_retrieval: (cr,) array; whether or not cr event was retrieval
-        was_cache: (cr,) array; whether or not cr event was cache
+        cr_was_retrieval: (cr,) array; whether or not cr event was retrieval
+        cr_was_cache: (cr,) array; whether or not cr event was cache
         spikes: (neurs, frames) array; number of spikes of each neur per frame
 
 
@@ -47,125 +49,61 @@ class ExpData(object):
         self.cr_pokes = np.array(f['CacheFrames']).squeeze().astype(int) - 1
         self.cr_enters = np.array(f['CacheFramesEnter']).squeeze().astype(int) - 1
         self.cr_exits = np.array(f['CacheFramesExit']).squeeze().astype(int)
-        self.was_retrieval = np.array(f['ThisWasRetrieval']).squeeze().astype(bool)
-        self.was_cache = np.logical_not(self.was_retrieval)
+        self.cr_was_retrieval = np.array(f['ThisWasRetrieval']).squeeze().astype(bool)
+        self.cr_was_cache = np.logical_not(self.cr_was_retrieval)
+        self._remove_repeated_crs()
         self.spikes = np.array(f['S']).T
         self.num_neurs, self.num_frames = self.spikes.shape
         self.fr = get_fr(self.spikes)
 
-    def get_noncache_visits(self): #TODO
+    def get_cr_visits(self):
         """
-        Extracts visits where the bird did not cache or retrieve
+        Labels each visit as cache/retrieval, or non-cr.
 
         Returns:
-            noncache_enters, noncache_exits, noncache_wedges. Same as visits
-            counterpart but with c/r visits removed
+            cr_visits, noncr_visits: arrays that index into visits to extract
+            each type of visit. The size of both arrays stacked together
+            should be (visits,)
         """
 
-        visit_enters = self.visit_enters
-        visit_exits = self.visit_exits
-        visit_wedges = self.visit_wedges
-        cache_enters = self.cache_enters
-        cache_exits = self.cache_exits
-        all_cache_frames = [
-            np.arange(enter, exit) for enter, exit in zip(cache_enters, cache_exits)
-            ]
-        all_cache_frames = np.concatenate(all_cache_frames)
-        noncache_idxs = []
-        for idx in range(visit_enters.size):
-            enter = visit_enters[idx]
-            exit = visit_exits[idx]
-            if enter in all_cache_frames or exit in all_cache_frames:
-                continue
-            noncache_idxs.append(idx)
-        noncache_enters = visit_enters[noncache_idxs]
-        noncache_exits = visit_exits[noncache_idxs]
-        noncache_wedges = visit_wedges[noncache_idxs]
-        return noncache_enters, noncache_exits, noncache_wedges
+        _, cr_visits, cr_order = np.intersect1d(
+            self.visit_enters, self.cr_enters, return_indices = True
+            )
+        cr_visits = cr_visits[np.argsort(cr_order)]
+        noncr_visits = np.arange(self.visit_enters.size)
+        noncr_visits = np.setdiff1d(noncr_visits, cr_visits)
+        return cr_visits, noncr_visits
 
-    def get_hopcentered_frames(self, window, nanpad=False): #TODO
-        cache_enters = self.cache_enters
-        cache_exits = self.cache_exits
-        noncache_enters = self.noncache_enters
-        noncache_exits = self.noncache_exits
-        noncache_wedges = self.noncache_wedges
-        cache_hops_frames = [
-            np.arange(enter-window, enter+window+1) for \
-            enter, exit in zip(cache_enters, cache_exits)
-            ]
-        all_cache_related_frames = [
-            np.arange(enter, exit) for enter, exit in zip(cache_enters, cache_exits)
-            ]
-        all_cache_related_frames.extend(cache_hops_frames)
-        all_cache_related_frames = np.concatenate(all_cache_related_frames)
-        noncache_hops_frames = []
-        noncache_hops_wedges = []
-        for idx in range(noncache_enters.size):
-            enter = noncache_enters[idx]
-            exit = noncache_exits[idx]
-            wedge = noncache_wedges[idx]
-            start_hop_frame = max(enter - window, 0)
-            end_hop_frame = min(enter + window + 1, self.num_frames)
-            hops_frames = np.arange(start_hop_frame, end_hop_frame)
-            if np.sum(np.isin(hops_frames, all_cache_related_frames)) > 0:
-                continue
-            if nanpad:
-                start_pad = start_hop_frame - (enter-window)
-                end_pad = (enter + window + 1) - end_hop_frame
-                hops_frames = np.concatenate([
-                    np.zeros(start_pad)*np.nan,
-                    hops_frames, np.zeros(end_pad)*np.nan
-                    ])
-                if hops_frames.size != window*2 + 1: import pdb; pdb.set_trace()
-            noncache_hops_frames.append(hops_frames)
-            noncache_hops_wedges.append(wedge)
-        noncache_hops_wedges = np.array(noncache_hops_wedges)
-        return cache_hops_frames, noncache_hops_frames, noncache_hops_wedges
+    def get_hopcentered_visits(self, window):
+        """
+        Collects visits centered on hops into the site for a given window size.
 
-    def get_hopcentered_fr(self, window, nanpad=False, fr=None): #TODO
-        if fr is None:
-            fr = self.fr
-        cache_enters = self.cache_enters
-        cache_exits = self.cache_exits
-        noncache_enters = self.noncache_enters
-        noncache_exits = self.noncache_exits
-        noncache_wedges = self.noncache_wedges
-        cache_hops_frames = [
+        Returns:
+            (visits, window) array with NaN-padding where indices extend out of
+            range.
+        """
+
+        hopcentered_visits = np.array([
+            #np.arange(enter, enter+2*window+1) for \
             np.arange(enter-window, enter+window+1) for \
-            enter, exit in zip(cache_enters, cache_exits)
-            ]
-        cache_hops_fr = [fr[c,:] for c in cache_hops_frames]
-        all_cache_related_frames = [
-            np.arange(enter, exit) for enter, exit in zip(cache_enters, cache_exits)
-            ]
-        all_cache_related_frames.extend(cache_hops_frames)
-        all_cache_related_frames = np.concatenate(all_cache_related_frames)
-        noncache_hops_frames = []
-        noncache_hops_wedges = []
-        noncache_hops_fr = []
-        for idx in range(noncache_enters.size):
-            enter = noncache_enters[idx]
-            exit = noncache_exits[idx]
-            wedge = noncache_wedges[idx]
-            start_hop_frame = max(enter - window, 0)
-            end_hop_frame = min(enter + window + 1, self.num_frames)
-            hops_frames = np.arange(start_hop_frame, end_hop_frame)
-            hops_fr = fr[hops_frames, :]
-            if np.sum(np.isin(hops_frames, all_cache_related_frames)) > 0:
-                continue
-            if nanpad:
-                continue
-                start_pad = start_hop_frame - (enter-window)
-                end_pad = (enter + window + 1) - end_hop_frame
-                hops_fr = np.concatenate([
-                    np.zeros((start_pad, self.num_neurs))*np.nan,
-                    fr[hops_frames,:],
-                    np.zeros((end_pad, self.num_neurs))*np.nan
-                    ])
-                if hops_fr.shape[0] != window*2 + 1: import pdb; pdb.set_trace()
-            noncache_hops_frames.append(hops_frames)
-            noncache_hops_wedges.append(wedge)
-            noncache_hops_fr.append(hops_fr)
-        noncache_hops_wedges = np.array(noncache_hops_wedges)
-        return cache_hops_fr, noncache_hops_fr, noncache_hops_wedges
+            enter, exit in zip(self.visit_enters, self.visit_exits)
+            ])
+        hopcentered_visits[hopcentered_visits < 0] = -1
+        hopcentered_visits[hopcentered_visits >= self.num_frames] = -1
+        return hopcentered_visits
+
+    def _remove_repeated_crs(self):
+        unique_enters = []
+        keep_cr = np.ones(self.cr_enters.size).astype(bool)
+        for idx, enter in enumerate(self.cr_enters):
+            if enter in unique_enters:
+                keep_cr[idx] = False
+            else:
+                unique_enters.append(enter)
+        self.cr_sites = self.cr_sites[keep_cr]
+        self.cr_pokes = self.cr_pokes[keep_cr]
+        self.cr_enters = self.cr_enters[keep_cr]
+        self.cr_exits = self.cr_exits[keep_cr]
+        self.cr_was_retrieval = self.cr_was_retrieval[keep_cr]
+        self.cr_was_cache = self.cr_was_cache[keep_cr]
 

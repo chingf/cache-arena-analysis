@@ -45,7 +45,7 @@ def gen_2d_bins(x, y, n):
     binnumber_lin = (binnumber_2d[0]*n) + binnumber_2d[1]
     return binnumber_2d, binnumber_lin
 
-def population_overlap(A, b):
+def popln_overlap(A, b):
     """
     Returns population overlap as defined by X
     
@@ -53,6 +53,7 @@ def population_overlap(A, b):
         A: ()
     """
 
+    A = A.T
     adotb = np.dot(A, b)
     asumsq = np.sum(np.square(A), axis=1)
     bsumsq = np.sum(np.square(b))

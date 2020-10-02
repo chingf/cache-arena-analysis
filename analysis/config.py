@@ -1,13 +1,14 @@
 from pathlib import Path
 
 # Data configuration variables
+pickle_dir = Path('/home/chingf/Code/cache-arena-analysis/pickles')
 engram_dir = Path('/home/chingf/engram/Emily')
 neural_data_dir = engram_dir / 'NeuralData/Gcamp'
 behav_data_dir = engram_dir / 'BehavioralData'
 birds = ['RBY45', 'LMN73']
 
 # Collects filepaths to data
-auto_collect = False # Directory structure is not consistent yet for auto-collect
+auto_collect = False # Directory structure is not yet consistent for auto-collect
 h5_path_dict = {}
 if auto_collect:
     for bird in birds:

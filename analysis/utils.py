@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.stats import binned_statistic_2d
+from scipy.ndimage import gaussian_filter1d
 
 fps = 20
 
@@ -25,15 +26,10 @@ def get_fr(spikes, window=fps):
         array of same shape as spikes, with firing rate calculated over frames
     """
 
-    smoothing_kernel = np.ones(window+1)/(window+1) # One sec smoothing
     if len(spikes.shape) == 2:
-        fr = []
-        for neur in range(spikes.shape[0]):
-            fr.append(np.convolve(spikes[neur], smoothing_kernel, "same"))
-        fr = np.array(fr)
+        return gaussian_filter1d(spikes, sigma=window, axis=1)
     else:
-        fr = np.convolve(spikes, smoothing_kernel, "same")
-    return fr
+        return gaussian_filter1d(spikes, sigma=window)
 
 def gen_2d_bins(x, y, n):
     """ Given a series of (x,y) coordinates, bins into a n x n grid """

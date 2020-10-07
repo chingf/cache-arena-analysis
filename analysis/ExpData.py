@@ -52,6 +52,7 @@ class ExpData(object):
         self.cr_was_retrieval = np.array(f['ThisWasRetrieval']).squeeze().astype(bool)
         self.cr_was_cache = np.logical_not(self.cr_was_retrieval)
         self._remove_repeated_crs()
+        self._sort_crs()
         self.spikes = np.array(f['S']).T
         self.num_neurs, self.num_frames = self.spikes.shape
         self.fr = get_fr(self.spikes)
@@ -66,10 +67,9 @@ class ExpData(object):
             should be (visits,)
         """
 
-        _, cr_visits, cr_order = np.intersect1d(
+        _, cr_visits, _ = np.intersect1d(
             self.visit_enters, self.cr_enters, return_indices = True
             )
-        cr_visits = cr_visits[np.argsort(cr_order)]
         noncr_visits = np.arange(self.visit_enters.size)
         noncr_visits = np.setdiff1d(noncr_visits, cr_visits)
         return cr_visits, noncr_visits
@@ -84,7 +84,6 @@ class ExpData(object):
         """
 
         hopcentered_visits = np.array([
-            #np.arange(enter, enter+2*window+1) for \
             np.arange(enter-window, enter+window+1) for \
             enter, exit in zip(self.visit_enters, self.visit_exits)
             ])
@@ -106,4 +105,13 @@ class ExpData(object):
         self.cr_exits = self.cr_exits[keep_cr]
         self.cr_was_retrieval = self.cr_was_retrieval[keep_cr]
         self.cr_was_cache = self.cr_was_cache[keep_cr]
+
+    def _sort_crs(self):
+        sorting = np.argsort(self.cr_enters)
+        self.cr_sites = self.cr_sites[sorting]
+        self.cr_pokes = self.cr_pokes[sorting]
+        self.cr_enters = self.cr_enters[sorting]
+        self.cr_exits = self.cr_exits[sorting]
+        self.cr_was_retrieval = self.cr_was_retrieval[sorting]
+        self.cr_was_cache = self.cr_was_cache[sorting]
 

@@ -54,6 +54,4 @@ def popln_overlap(A, b):
     asumsq = np.sum(np.square(A), axis=1)
     bsumsq = np.sum(np.square(b))
     dist = adotb/(asumsq + bsumsq - adotb)
-#     if np.sum(np.isnan(dist)) > 0:
-#         import pdb; pdb.set_trace()
     return dist

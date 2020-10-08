@@ -16,7 +16,9 @@ class EpisodeCalc(object):
     threshold: float
 
     def calc_ep_index(self, exp_data):
-        """ Gets the episode index of each cell. """
+        """
+        Gets the episode index of each cell. Returns a (cache, neur) array
+        """
 
         cr_visits, noncr_visits = exp_data.get_cr_visits()
         noncr_sites = exp_data.visit_wedges[noncr_visits]

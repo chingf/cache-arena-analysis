@@ -44,8 +44,8 @@ class ExpData(object):
         self.visit_durs = np.array(f['VisitDur']).squeeze()
         self.visit_enters = np.array(f['VisitStart']).squeeze().astype(int) - 1
         self.visit_exits = self.visit_enters + self.visit_durs
-        self.visit_wedges = np.array(f['VisitWedge']).squeeze()
-        self.cr_sites = np.array(f['CacheSites']).squeeze()
+        self.visit_wedges = np.array(f['VisitWedge']).squeeze().astype(int)
+        self.cr_sites = np.array(f['CacheSites']).squeeze().astype(int)
         self.cr_pokes = np.array(f['CacheFrames']).squeeze().astype(int) - 1
         self.cr_enters = np.array(f['CacheFramesEnter']).squeeze().astype(int) - 1
         self.cr_exits = np.array(f['CacheFramesExit']).squeeze().astype(int)

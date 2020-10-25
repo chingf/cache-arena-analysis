@@ -41,7 +41,7 @@ class ExpData(object):
         self.theta = np.array(f['theta']).squeeze()
         self.wedges = np.array(f['whichWedge']).squeeze()
         self.visit_s = np.array(f['VS']).squeeze().T
-        self.visit_durs = np.array(f['VisitDur']).squeeze()
+        self.visit_durs = np.array(f['VisitDur']).squeeze().astype(int)
         self.visit_enters = np.array(f['VisitStart']).squeeze().astype(int) - 1
         self.visit_exits = self.visit_enters + self.visit_durs
         self.visit_wedges = np.array(f['VisitWedge']).squeeze().astype(int)
@@ -79,7 +79,7 @@ class ExpData(object):
         Collects visits centered on hops into the site for a given window size.
 
         Returns:
-            (visits, window) array with NaN-padding where indices extend out of
+            (visits, window) array with (-1)-padding where indices extend out of
             range.
         """
 

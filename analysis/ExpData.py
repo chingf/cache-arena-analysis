@@ -41,17 +41,20 @@ class ExpData(object):
             self.y = np.array(f['Y']).squeeze()
         self.thetas = np.array(f['theta']).squeeze()
         self.wedges = np.array(f['whichWedge']).squeeze()
+        self.spikes = np.array(f['S']).T
+        self.num_neurs, self.num_frames = self.spikes.shape
+        self.fr = get_fr(self.spikes)
         self.visit_s = np.array(f['VS']).squeeze().T
         self.visit_durs = np.array(f['VisitDur']).squeeze().astype(int)
         self.visit_enters = np.array(f['VisitStart']).squeeze().astype(int) - 1
-        self.visit_exits = self.visit_enters + self.visit_durs
+        self.visit_exits = self.visit_enters + self.visit_durs + 1
         self.visit_wedges = np.array(f['VisitWedge']).squeeze().astype(int)
 
         if "LMN" in f.filename:
             self.event_sites = np.array(f['EventSites']).squeeze().astype(int)
             self.event_pokes = np.array(f['EventFrames']).squeeze().astype(int) - 1
             self.event_enters = np.array(f['EventFramesEnter']).squeeze().astype(int) - 1
-            self.event_exits = np.array(f['EventFramesExit']).squeeze().astype(int)
+            self.event_exits = np.array(f['EventFramesExit']).squeeze().astype(int) + 1
             event_labels = np.array(f['TypeOfEvent']).squeeze()
             self.cache_event = (event_labels == 1)
             self.retriev_event = (event_labels == 2)
@@ -65,12 +68,8 @@ class ExpData(object):
             self.retriev_event = np.array(f['ThisWasRetrieval']).squeeze().astype(bool)
             self.cache_event = np.logical_not(self.retriev_event)
             self.check_event = np.zeros(self.event_sites.size).astype(bool)
-
         self._remove_repeated_events()
         self._sort_events()
-        self.spikes = np.array(f['S']).T
-        self.num_neurs, self.num_frames = self.spikes.shape
-        self.fr = get_fr(self.spikes)
 
     def get_cr_visits(self):
         """
@@ -145,13 +144,20 @@ class ExpData(object):
         are aligned to a visit frame enter.
         """
 
-        for i in np.argwhere(self.check_event):
-            est_enter = self.event_enters[i]
-            est_exit = self.event_exits[i]
-            if est_enter not in self.visit_enters:
-                visit_idx = np.digitize(est_enter, self.visit_enters) - 1
-                self.event_enters[i] = self.visit_enters[visit_idx]
-                self.event_exits[i] = self.visit_exits[visit_idx]
-            elif est_exit not in self.visit_exits:
-                visit_idx = np.argwhere(self.visit_enters == est_enter)
-                self.event_exits[i] = self.visit_exits[visit_idx]
+        visit_idxs = np.digitize(self.event_enters, self.visit_enters) - 1
+        visit_wedges = self.visit_wedges[visit_idxs]
+        valid_indices = (self.event_sites == visit_wedges)
+        self.event_sites = self.event_sites[valid_indices]
+        self.event_pokes = self.event_pokes[valid_indices]
+        self.event_enters = self.event_enters[valid_indices]
+        self.event_exits = self.event_exits[valid_indices]
+        self.cache_event = self.cache_event[valid_indices]
+        self.retriev_event = self.retriev_event[valid_indices]
+        self.check_event = self.check_event[valid_indices]
+        incorrect_exits = np.logical_not(np.isin(self.event_exits, self.visit_exits))
+        if np.sum(incorrect_exits) > 0:
+            correct_idxs = np.digitize(
+                self.event_exits[incorrect_exits], self.visit_exits
+                ) - 1
+            self.event_exits[incorrect_exits] = self.visit_exits[correct_idxs]
+

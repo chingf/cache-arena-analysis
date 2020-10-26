@@ -56,6 +56,7 @@ class ExpData(object):
             self.cache_event = (event_labels == 1)
             self.retriev_event = (event_labels == 2)
             self.check_event = (event_labels == 3)
+            self._align_checks()
         else:
             self.event_sites = np.array(f['CacheSites']).squeeze().astype(int)
             self.event_pokes = np.array(f['CacheFrames']).squeeze().astype(int) - 1
@@ -63,7 +64,7 @@ class ExpData(object):
             self.event_exits = np.array(f['CacheFramesExit']).squeeze().astype(int)
             self.retriev_event = np.array(f['ThisWasRetrieval']).squeeze().astype(bool)
             self.cache_event = np.logical_not(self.retriev_event)
-            self.check_event = np.zeros(event_sites.size).astype(bool)
+            self.check_event = np.zeros(self.event_sites.size).astype(bool)
 
         self._remove_repeated_events()
         self._sort_events()
@@ -137,3 +138,20 @@ class ExpData(object):
         self.retriev_event = self.retriev_event[sorting]
         self.check_event = self.check_event[sorting]
 
+    def _align_checks(self):
+        """
+        Temporary method to fix incorrectly formatted data in LMN73. Throws out
+        the current (incorrect) estimate of check frame enters and ensures they
+        are aligned to a visit frame enter.
+        """
+
+        for i in np.argwhere(self.check_event):
+            est_enter = self.event_enters[i]
+            est_exit = self.event_exits[i]
+            if est_enter not in self.visit_enters:
+                visit_idx = np.digitize(est_enter, self.visit_enters) - 1
+                self.event_enters[i] = self.visit_enters[visit_idx]
+                self.event_exits[i] = self.visit_exits[visit_idx]
+            elif est_exit not in self.visit_exits:
+                visit_idx = np.argwhere(self.visit_enters == est_enter)
+                self.event_exits[i] = self.visit_exits[visit_idx]

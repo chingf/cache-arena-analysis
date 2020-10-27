@@ -195,7 +195,7 @@ class ExpData(object):
         was present at the site of the visit
         """
 
-        cache_present = np.zeros(self.visit_wedges.size).astype(bool)
+        cache_present = np.zeros((self.visit_wedges.size, 16)).astype(bool)
         for c_enter, c_site in zip(
             self.event_enters[self.cache_event],
             self.event_sites[self.cache_event]
@@ -209,9 +209,9 @@ class ExpData(object):
                     visits_before_retriev = self.visit_enters < r_enter
                     visits_after_cache = self.visit_enters > c_enter
                     visits_at_site = self.visit_wedges == c_site
-                    in_between_visits = np.logical_and(np.logical_and(
-                        visits_after_cache, visits_before_retriev), visits_at_site
+                    in_between_visits = np.logical_and(
+                        visits_after_cache, visits_before_retriev
                         )
-                    cache_present[in_between_visits] = True
+                    cache_present[in_between_visits, c_site-1] = True
                     break
         self.cache_present = cache_present

@@ -70,6 +70,7 @@ class ExpData(object):
             self.check_event = np.zeros(self.event_sites.size).astype(bool)
         self._remove_repeated_events()
         self._sort_events()
+        self._label_cache_present()
 
     def get_cr_visits(self):
         """
@@ -93,6 +94,33 @@ class ExpData(object):
         noncr_visits = np.arange(self.visit_enters.size)
         noncr_visits = np.setdiff1d(noncr_visits, cr_visits)
         return c_visits, r_visits, noncr_visits
+
+    def get_crch_visits(self):
+        """
+        Labels each visit as cache/retrieval/check, or non-c/r/ch.
+
+        Returns:
+            cr_visits, noncr_visits: arrays that index into visits to extract
+            each type of visit. The size of both arrays stacked together
+            should be (visits,)
+        """
+
+        _, c_visits, _ = np.intersect1d(
+            self.visit_enters, self.event_enters[self.cache_event],
+            return_indices = True
+            )
+        _, r_visits, _ = np.intersect1d(
+            self.visit_enters, self.event_enters[self.retriev_event],
+            return_indices = True
+            )
+        _, ch_visits, _ = np.intersect1d(
+            self.visit_enters, self.event_enters[self.check_event],
+            return_indices = True
+            )
+        crch_visits = np.concatenate((c_visits, r_visits, ch_visits))
+        noncr_visits = np.arange(self.visit_enters.size)
+        noncr_visits = np.setdiff1d(noncr_visits, crch_visits)
+        return c_visits, r_visits, ch_visits, noncr_visits
 
     def get_hopcentered_visits(self, window):
         """
@@ -161,3 +189,29 @@ class ExpData(object):
                 ) - 1
             self.event_exits[incorrect_exits] = self.visit_exits[correct_idxs]
 
+    def _label_cache_present(self):
+        """
+        Creates a (visit,) array that indicates, for each visit, whether a cache
+        was present at the site of the visit
+        """
+
+        cache_present = np.zeros(self.visit_wedges.size).astype(bool)
+        for c_enter, c_site in zip(
+            self.event_enters[self.cache_event],
+            self.event_sites[self.cache_event]
+            ):
+            for r_enter, r_site in zip(
+                self.event_enters[self.retriev_event],
+                self.event_sites[self.retriev_event]
+                ):
+                    if c_site != r_site: continue
+                    if r_enter < c_enter: continue
+                    visits_before_retriev = self.visit_enters < r_enter
+                    visits_after_cache = self.visit_enters > c_enter
+                    visits_at_site = self.visit_wedges == c_site
+                    in_between_visits = np.logical_and(np.logical_and(
+                        visits_after_cache, visits_before_retriev), visits_at_site
+                        )
+                    cache_present[in_between_visits] = True
+                    break
+        self.cache_present = cache_present

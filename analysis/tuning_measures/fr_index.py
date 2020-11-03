@@ -1,15 +1,15 @@
 import numpy as np
 
-def calc_mat(fr, cr_sites, noncr_sites, hopcentered_cr, hopcentered_noncr):
+def calc_mat(fr, cr_sites, noncr_sites, hop_windows_cr, hop_windows_noncr):
     """
     Forms the f.r. index matrix out of rows.
 
     Args:
         fr: (neurs, frames) array
         cr_sites: (cr,) array of locations of cache/retrievals
-        noncr_sites: (noncr,) array of locations of non-cache/retrieval visits
-        hopcentered_cr: (cr, window) array
-        hopcentered_noncr: (non-cr, window) array
+        noncr_sites: (noncr,) array of locations of non-cache/retrieval hops
+        hop_windows_cr: (cr, window) array
+        hop_windows_noncr: (non-cr, window) array
     Returns:
         (cr, neurs) matrix of firing rate indices.
     """
@@ -17,9 +17,9 @@ def calc_mat(fr, cr_sites, noncr_sites, hopcentered_cr, hopcentered_noncr):
     num_neurs, _ = fr.shape
     cr_idx_mat = np.zeros((cr_sites.size, num_neurs))
     for cr, cr_wedge in enumerate(cr_sites):
-        in_condition = hopcentered_cr[cr]
+        in_condition = hop_windows_cr[cr]
         in_condition = in_condition[in_condition != -1]
-        out_conditions = hopcentered_noncr[noncr_sites == cr_wedge]
+        out_conditions = hop_windows_noncr[noncr_sites == cr_wedge]
         out_conditions = out_conditions[~(out_conditions == -1).any(axis=1)]
         cr_idx_row = calc_row(fr, in_condition, out_conditions)
         cr_idx_mat[cr,:] = cr_idx_row
@@ -33,8 +33,8 @@ def calc_row(fr, in_condition, out_conditions):
     Args:
         fr: (neurs, frames) array
         in_condition: (window,) array containing the frames of the episode
-        out_conditions: (out-of-condition visits, window) array containing
-            the frames of out-of-condition visits
+        out_conditions: (out-of-condition hops, window) array containing
+            the frames of out-of-condition hops
     Returns:
         (neurs,) array of firing rate indices. A row of the f.r. index matrix
     """

@@ -20,14 +20,14 @@ class EpisodeCalc(object):
         Gets the episode index of each cell. Returns a (cache, neur) array
         """
 
-        cr_visits, noncr_visits = exp_data.get_cr_visits()
-        noncr_sites = exp_data.visit_wedges[noncr_visits]
-        hopcentered_visits = exp_data.get_hopcentered_visits(self.window)
-        hopcentered_cr = hopcentered_visits[cr_visits]
-        hopcentered_noncr = hopcentered_visits[noncr_visits]
+        cr_hops, noncr_hops = exp_data.get_cr_hops()
+        noncr_sites = exp_data.hop_end_wedges[noncr_hops]
+        hop_windows = exp_data.get_hop_windows(self.window)
+        hop_windows_cr = hop_windows[cr_hops]
+        hop_windows_noncr = hop_windows[noncr_hops]
         cr_idx_mat = fr_index.calc_mat(
             exp_data.fr, exp_data.cr_sites, noncr_sites,
-            hopcentered_cr, hopcentered_noncr
+            hop_windows_cr, hop_windows_noncr
             )
         cr_idx_mean = np.mean(cr_idx_mat, axis=0)
         significance = np.zeros(exp_data.num_neurs)
@@ -35,17 +35,17 @@ class EpisodeCalc(object):
         for _ in np.arange(self.num_shuffles):
             shuff_fr = np.zeros(exp_data.fr.shape)
             for neur in np.arange(exp_data.num_neurs):
-                shuff_hopcentered_cr, shuff_hopcentered_noncr = \
-                    self._shuffle_conditions(hopcentered_cr, hopcentered_noncr)
+                shuff_hop_windows_cr, shuff_hop_windows_noncr = \
+                    self._shuffle_conditions(hop_windows_cr, hop_windows_noncr)
                 shuff_spikes = exp_data.spikes[neur]
-                for shuff, idxs in zip(shuff_hopcentered_cr, hopcentered_cr):
+                for shuff, idxs in zip(shuff_hop_windows_cr, hop_windows_cr):
                     shuff_spikes[idxs] = exp_data.spikes[neur, shuff]
-                for shuff, idxs in zip(shuff_hopcentered_noncr, hopcentered_noncr):
+                for shuff, idxs in zip(shuff_hop_windows_noncr, hop_windows_noncr):
                     shuff_spikes[idxs] = exp_data.spikes[neur, shuff]
                 shuff_fr[neur] = get_fr(shuff_spikes)
             shuff_cr_idx_mat = fr_index.calc_mat(
                 shuff_fr, exp_data.cr_sites, noncr_sites,
-                hopcentered_cr, hopcentered_noncr
+                hop_windows_cr, hop_windows_noncr
                 )
             shuff_cr_idx_mean = np.mean(shuff_cr_idx_mat, axis=0)
             significance += (shuff_cr_idx_mean < cr_idx_mean)
@@ -61,25 +61,25 @@ class EpisodeCalc(object):
         ep_info = np.zeros(exp_data.num_neurs)
         shuffled_ep_info = np.zeros(exp_data.num_neurs)
         significance = np.zeros(exp_data.num_neurs)
-        cr_visits, noncr_visits = exp_data.get_cr_visits()
-        hopcentered_visits = exp_data.get_hopcentered_visits(self.window)
-        hopcentered_cr = hopcentered_visits[cr_visits]
-        hopcentered_noncr = hopcentered_visits[noncr_visits]
+        cr_hops, noncr_hops = exp_data.get_cr_hops()
+        hop_windows = exp_data.get_hop_windows(self.window)
+        hop_windows_cr = hop_windows[cr_hops]
+        hop_windows_noncr = hop_windows[noncr_hops]
         conditions = -1*np.ones(exp_data.fr.shape[1])
-        for cr in hopcentered_cr:
+        for cr in hop_windows_cr:
             conditions[cr[cr != -1]] = 1
-        for noncr in hopcentered_noncr:
+        for noncr in hop_windows_noncr:
             conditions[noncr[noncr != -1]] = 0
         ep_info = mutual_info.get_mutual_info(conditions, exp_data.fr)
         for _ in range(self.num_shuffles):
             shuff_fr = np.zeros(exp_data.fr.shape)
             for neur in np.arange(exp_data.num_neurs):
-                shuff_hopcentered_cr, shuff_hopcentered_noncr = \
-                    self._shuffle_conditions(hopcentered_cr, hopcentered_noncr)
+                shuff_hop_windows_cr, shuff_hop_windows_noncr = \
+                    self._shuffle_conditions(hop_windows_cr, hop_windows_noncr)
                 shuff_spikes = exp_data.spikes[neur]
-                for shuff, idxs in zip(shuff_hopcentered_cr, hopcentered_cr):
+                for shuff, idxs in zip(shuff_hop_windows_cr, hop_windows_cr):
                     shuff_spikes[idxs] = exp_data.spikes[neur, shuff]
-                for shuff, idxs in zip(shuff_hopcentered_noncr, hopcentered_noncr):
+                for shuff, idxs in zip(shuff_hop_windows_noncr, hop_windows_noncr):
                     shuff_spikes[idxs] = exp_data.spikes[neur, shuff]
                 shuff_fr[neur] = get_fr(shuff_spikes)
             shuffled_info = mutual_info.get_mutual_info(conditions, shuff_fr)
@@ -91,15 +91,15 @@ class EpisodeCalc(object):
         significance /= self.num_shuffles
         return ep_info, significance
 
-    def _shuffle_conditions(self, hopcentered_cr, hopcentered_noncr):
+    def _shuffle_conditions(self, hop_windows_cr, hop_windows_noncr):
         """
-        Stacks the cr and non-cr visits on top of each other, shuffles the rows,
-        and reassigns each row as a cr or non-cr visit.
+        Stacks the cr and non-cr hops on top of each other, shuffles the rows,
+        and reassigns each row as a cr or non-cr hop.
         """
 
-        all_visits = np.vstack((hopcentered_cr, hopcentered_noncr))
-        np.random.shuffle(all_visits); np.random.shuffle(all_visits)
-        shuff_hopcentered_cr = all_visits[:hopcentered_cr.shape[0]]
-        shuff_hopcentered_noncr = all_visits[:hopcentered_noncr.shape[0]]
-        return shuff_hopcentered_cr, shuff_hopcentered_noncr
+        all_hops = np.vstack((hop_windows_cr, hop_windows_noncr))
+        np.random.shuffle(all_hops); np.random.shuffle(all_hops)
+        shuff_hop_windows_cr = all_hops[:hop_windows_cr.shape[0]]
+        shuff_hop_windows_noncr = all_hops[:hop_windows_noncr.shape[0]]
+        return shuff_hop_windows_cr, shuff_hop_windows_noncr
 

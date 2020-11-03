@@ -122,7 +122,7 @@ class ExpData(object):
         """
 
         hop_windows = np.array([
-            np.arange(enter-window, enter+window+1) for enter in self.hops
+            np.arange(hop-window, hop+window+1) for hop in self.hops
             ])
         hop_windows[hop_windows < 0] = -1
         hop_windows[hop_windows >= self.num_frames] = -1
@@ -195,13 +195,13 @@ class ExpData(object):
     def _remove_repeated_events(self):
         """ Removes duplicate events from incorrect labeling. """
 
-        unique_enters = []
+        unique_hops = []
         keep_event = np.ones(self.event_hops.size).astype(bool)
-        for idx, enter in enumerate(self.event_hops):
-            if enter in unique_enters:
+        for idx, hop in enumerate(self.event_hops):
+            if hop in unique_hops:
                 keep_event[idx] = False
             else:
-                unique_enters.append(enter)
+                unique_hops.append(hop)
         self.event_sites = self.event_sites[keep_event]
         self.event_pokes = self.event_pokes[keep_event]
         self.event_hops = self.event_hops[keep_event]
@@ -226,7 +226,7 @@ class ExpData(object):
         was present at the site of the hop
         """
 
-        cache_present = np.zeros((self.hops, 16)).astype(bool)
+        cache_present = np.zeros((self.hops.size, 16)).astype(bool)
         for c_hop, c_site in zip(
             self.event_hops[self.cache_event],
             self.event_sites[self.cache_event]
@@ -236,9 +236,9 @@ class ExpData(object):
                 self.event_sites[self.retriev_event]
                 ):
                     if c_site != r_site: continue
-                    if r_enter < c_enter: continue
-                    hops_before_retriev = self.hops < r_enter
-                    hops_after_cache = self.hops > c_enter
+                    if r_hop < c_hop: continue
+                    hops_before_retriev = self.hops < r_hop
+                    hops_after_cache = self.hops > c_hop
                     hops_at_site = self.hop_end_wedges == c_site
                     in_between_hops = np.logical_and(
                         hops_after_cache, hops_before_retriev

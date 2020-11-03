@@ -4,17 +4,10 @@ from scipy.ndimage import gaussian_filter1d
 
 fps = 20
 
-def get_velocity(f):
-    x, y, frames = get_xy(f, in_bound=False)
-    delta_x = x[1:] - x[:-1]
-    delta_y = y[1:] - y[:-1]
-    frames = frames[1:]
-    velocity = np.sqrt(np.square(delta_x) + np.square(delta_y)) # pixels/frame
-    velocity = velocity*fps # pixels/s
-    smoothing_kernel = np.ones(fps)/fps
-    velocity = np.convolve(velocity, smoothing_kernel, "valid")
-    frames = frames[:velocity.size]
-    return velocity, frames
+def cart2pol(x, y):
+    rhos = np.sqrt(np.square(x) + np.square(y))
+    thetas = np.arctan2(y, x)
+    return(rhos, thetas)
 
 def get_fr(spikes, window=fps):
     """

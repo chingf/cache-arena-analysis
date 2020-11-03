@@ -1,3 +1,4 @@
+import pickle
 from pathlib import Path
 
 # Data configuration variables
@@ -6,6 +7,10 @@ engram_dir = Path('/home/chingf/engram/Emily')
 neural_data_dir = engram_dir / 'NeuralData/Gcamp'
 behav_data_dir = engram_dir / 'BehavioralData'
 birds = ['RBY45', 'LMN73']
+
+# Arena configuration variables
+with open(pickle_dir / "arena_params.p", "rb") as f:
+    arena_params = pickle.load(f)
 
 # Collects filepaths to data
 auto_collect = True # Directory structure is not yet consistent for auto-collect

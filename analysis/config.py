@@ -1,4 +1,6 @@
+import os
 import pickle
+import numpy as np
 from pathlib import Path
 
 # Data configuration variables
@@ -26,14 +28,16 @@ if auto_collect:
             for processing_dir in [d for d in date_dir.iterdir() if d.is_dir()]:
                 results_dir = processing_dir / 'Results'
                 if not results_dir.exists(): continue
+                if not np.any(["DLC" in f.name for f in results_dir.iterdir()]):
+                    continue
                 extracted_files = [
                     f for f in results_dir.iterdir() if f.stem.startswith(
-                        "ExtractedWithDLCAndAnnotations"
+                        "ExtractedWith"
                         )
                     ]
                 if len(extracted_files) == 0: continue
-                extracted_files.sort()
-                h5_path_dict[bird].append(extracted_files[-1])
+                extracted_files.sort(key=os.path.getmtime, reverse=True)
+                h5_path_dict[bird].append(extracted_files[0])
 else:
     lmn_dir = neural_data_dir / 'LMN73'
     h5_path_dict['LMN73'] = [

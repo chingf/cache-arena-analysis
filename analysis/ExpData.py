@@ -59,6 +59,7 @@ class ExpData(object):
         self._set_hop_visits()
         self._set_event_labels()
         self._remove_repeated_events()
+        self._remove_super_short_hops()
         self._sort_events()
         self._label_cache_present()
 
@@ -246,3 +247,24 @@ class ExpData(object):
                     cache_present[in_between_hops, c_site-1] = True
                     break
         self.cache_present = cache_present
+
+    def _remove_super_short_hops(self):
+        """
+        Removes hops that only last a couple of frames. These are likely
+        the result of DLC labeling errors or dropped video frames.
+        """
+
+        valid_hops = np.logical_not((self.hop_ends - self.hop_starts) < 3)
+        self.hops = self.hops[valid_hops]
+        self.hop_starts = self.hop_starts[valid_hops]
+        self.hop_ends = self.hop_ends[valid_hops]
+        self.hop_start_wedges = self.hop_start_wedges[valid_hops]
+        self.hop_end_wedges = self.hop_end_wedges[valid_hops]
+        valid_events = np.isin(self.event_hops, self.hops)
+        self.event_sites = self.event_sites[valid_events]
+        self.event_pokes = self.event_pokes[valid_events]
+        self.event_hops = self.event_hops[valid_events]
+        self.cache_event = self.cache_event[valid_events]
+        self.retriev_event = self.retriev_event[valid_events]
+        self.check_event = self.check_event[valid_events]
+

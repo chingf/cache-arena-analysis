@@ -1,8 +1,9 @@
+import pickle
 import numpy as np
 from math import pi
 from scipy.signal import find_peaks
-from analysis.config import arena_params
-from analysis.utils import cart2pol, get_fr
+from analysis.config import arena_params, pickle_dir
+from analysis.utils import cart2pol, get_fr, get_max_consecutive, in_ellipse
 
 class ExpData(object):
     """
@@ -12,6 +13,8 @@ class ExpData(object):
     Attrs:
         x: (frames,) array; x location of bird position
         y: (frames,) array; y location of bird position
+        x_head: (frames,) array; x location of bird head
+        y_head: (frames,) array; y location of bird head
         thetas: (frames,) array; angle of bird position relative to center
         wedges: (frames,) array; which wedge the bird is on
         speeds: (frames,) array; speed of bird in pixels/frame
@@ -36,9 +39,13 @@ class ExpData(object):
         if 'XDLC' in f.keys() and 'YDLC' in f.keys():
             self.x = np.array(f['XDLC']['Body']).squeeze()
             self.y = np.array(f['YDLC']['Body']).squeeze()
+            self.x_head = np.array(f['XDLC']['Head']).squeeze()
+            self.y_head = np.array(f['YDLC']['Head']).squeeze()
         else:
             self.x = np.array(f['X']).squeeze()
             self.y = np.array(f['Y']).squeeze()
+            self.x_head = None 
+            self.y_head = None
         self.spikes = np.array(f['S']).T
         self.num_neurs, self.num_frames = self.spikes.shape
         self.fr = get_fr(self.spikes)
@@ -109,9 +116,9 @@ class ExpData(object):
             return_indices = True
             )
         crch_hops = np.concatenate((c_hops, r_hops, ch_hops))
-        noncr_hops = np.arange(self.hops.size)
-        noncr_hops = np.setdiff1d(noncr_hops, crch_hops)
-        return c_hops, r_hops, ch_hops, noncr_hops
+        noncrch_hops = np.arange(self.hops.size)
+        noncrch_hops = np.setdiff1d(noncrch_hops, crch_hops)
+        return c_hops, r_hops, ch_hops, noncrch_hops
 
     def get_hop_windows(self, window):
         """
@@ -128,6 +135,41 @@ class ExpData(object):
         hop_windows[hop_windows < 0] = -1
         hop_windows[hop_windows >= self.num_frames] = -1
         return hop_windows
+
+    def get_putative_checks(self, window=20*2):
+        """ Labels each hop as a putative check or not. """
+
+        with open(pickle_dir / "check_params.p", "rb") as f:
+            params = pickle.load(f)
+        body_centers = params["body_centers"]
+        body_semiaxes = params["body_semiaxes"]
+        head_centers = params["head_centers"]
+        head_semiaxes = params["head_semiaxes"]
+        thresholds = params["thresholds"]
+        putative_checks = np.zeros(self.hops.size)
+        for hop_idx, hop in enumerate(self.hops):
+            hop_site = self.hop_end_wedges[hop_idx]
+            hop_start = hop - window
+            hop_end = hop + window
+            if hop_site == 17:
+                continue
+            if hop_start < 0 or hop_end >= self.num_frames:
+                putative_checks[hop_idx] = True
+                continue
+            head_in_roi = in_ellipse(
+                self.x_head[hop_start:hop_end],
+                self.y_head[hop_start:hop_end],
+                head_centers[hop_site - 1], head_semiaxes[hop_site - 1]
+                )
+            body_in_roi = in_ellipse(
+                self.x[hop_start:hop_end],
+                self.y[hop_start:hop_end],
+                body_centers[hop_site - 1], body_semiaxes[hop_site - 1]
+                )
+            both_in_roi = np.logical_and(head_in_roi, body_in_roi)
+            if get_max_consecutive(both_in_roi) > thresholds[hop_site - 1]:
+                putative_checks[hop_idx] = True
+        return putative_checks
 
     def _set_positional_variables(self, filename):
         """ Calculates position theta, wedges, speed. """

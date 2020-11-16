@@ -81,3 +81,25 @@ def get_max_consecutive(arr):
             continue
     return max_consecutive
 
+def get_consecutive(arr):
+    """ Returns the start and stop indices of each sequence in the arr """
+
+    if np.sum(arr) == arr.size: return [0], [arr.size - 1]
+    merge_starts = []; merge_ends = [];
+    in_consecutive_run = False
+    for idx, val in enumerate(arr):
+        if val and not in_consecutive_run:  # Start of a run
+            in_consecutive_run = True
+            merge_starts.append(idx)
+        elif val and in_consecutive_run: # Middle of a run
+            continue
+        elif not val and in_consecutive_run: # End of a run
+            in_consecutive_run = False
+            merge_ends.append(idx)
+        else:
+            merge_starts.append(idx)
+            merge_ends.append(idx)
+    if len(merge_ends) < len(merge_starts):
+        merge_ends.append(arr.size - 1)
+    return np.array(merge_starts), np.array(merge_ends)
+

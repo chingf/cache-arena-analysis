@@ -4,6 +4,7 @@ from math import pi
 from scipy.signal import find_peaks
 from analysis.config import arena_params, pickle_dir
 from analysis.utils import cart2pol, get_fr, get_max_consecutive, in_ellipse
+from analysis.utils import get_consecutive
 
 class ExpData(object):
     """
@@ -35,7 +36,7 @@ class ExpData(object):
         f: h5py File wrapped around the .mat file
     """
 
-    def __init__(self, f):
+    def __init__(self, f, min_hop_gap=0):
         if 'XDLC' in f.keys() and 'YDLC' in f.keys():
             self.x = np.array(f['XDLC']['Body']).squeeze()
             self.y = np.array(f['YDLC']['Body']).squeeze()
@@ -64,9 +65,11 @@ class ExpData(object):
             self.check_event = np.zeros(self.event_sites.size).astype(bool)
         self._set_positional_variables(f.filename)
         self._set_hop_visits()
+        self._remove_super_short_hops()
+        if min_hop_gap != 0:
+            self._merge_hops(min_hop_gap)
         self._set_event_labels()
         self._remove_repeated_events()
-        self._remove_super_short_hops()
         self._sort_events()
         self._label_cache_present()
 
@@ -219,11 +222,37 @@ class ExpData(object):
         self.hop_start_wedges = np.array(hop_start_wedges)[unique_idxs]
         self.hop_end_wedges = np.array(hop_end_wedges)[unique_idxs]
 
+    def _merge_hops(self, min_gap):
+        """
+        Merge hops if the bird pauses for less than some threshold between
+        hops.
+        """
+
+        hop_diffs = self.hop_starts[1:] - self.hop_ends[:-1]
+        hop_diffs = np.concatenate([hop_diffs, [0]])
+        merge_starts, merge_ends = get_consecutive(hop_diffs < min_gap)
+        new_hops = []; new_hop_starts = []; new_hop_ends = [];
+        new_hop_start_wedges = []; new_hop_end_wedges = [];
+        for merge_start, merge_end in zip(merge_starts, merge_ends):
+            merge_mid = (merge_start + merge_end)//2
+            new_hops.append(self.hops[merge_mid])
+            new_hop_starts.append(self.hop_starts[merge_start])
+            new_hop_ends.append(self.hop_ends[merge_end])
+            new_hop_start_wedges.append(self.hop_start_wedges[merge_start])
+            new_hop_end_wedges.append(self.hop_end_wedges[merge_end])
+        self.hops = np.array(new_hops)
+        self.hop_starts = np.array(new_hop_starts)
+        self.hop_ends = np.array(new_hop_ends)
+        self.hop_start_wedges = np.array(new_hop_start_wedges)
+        self.hop_end_wedges = np.array(new_hop_end_wedges)
+
     def _set_event_labels(self):
         """
         Finds the corresponding hop for each cache/retrieval/check event.
         """
-        
+
+        old_num = np.sum(self.cache_event)
+        event_poke_copy = self.event_pokes.copy()
         hop_idxs = np.digitize(self.event_pokes, self.hops) - 1
         hop_wedges = self.hop_end_wedges[hop_idxs]
         valid_indices = (self.event_sites == hop_wedges)
@@ -234,6 +263,8 @@ class ExpData(object):
         self.cache_event = self.cache_event[valid_indices]
         self.retriev_event = self.retriev_event[valid_indices]
         self.check_event = self.check_event[valid_indices]
+        new_num = np.sum(self.cache_event)
+        print(f"{new_num}/{old_num} caches kept")
 
     def _remove_repeated_events(self):
         """ Removes duplicate events from incorrect labeling. """
@@ -302,11 +333,11 @@ class ExpData(object):
         self.hop_ends = self.hop_ends[valid_hops]
         self.hop_start_wedges = self.hop_start_wedges[valid_hops]
         self.hop_end_wedges = self.hop_end_wedges[valid_hops]
-        valid_events = np.isin(self.event_hops, self.hops)
-        self.event_sites = self.event_sites[valid_events]
-        self.event_pokes = self.event_pokes[valid_events]
-        self.event_hops = self.event_hops[valid_events]
-        self.cache_event = self.cache_event[valid_events]
-        self.retriev_event = self.retriev_event[valid_events]
-        self.check_event = self.check_event[valid_events]
+        #valid_events = np.isin(self.event_hops, self.hops)
+        #self.event_sites = self.event_sites[valid_events]
+        #self.event_pokes = self.event_pokes[valid_events]
+        #self.event_hops = self.event_hops[valid_events]
+        #self.cache_event = self.cache_event[valid_events]
+        #self.retriev_event = self.retriev_event[valid_events]
+        #self.check_event = self.check_event[valid_events]
 

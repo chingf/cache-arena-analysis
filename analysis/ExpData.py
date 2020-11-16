@@ -251,8 +251,6 @@ class ExpData(object):
         Finds the corresponding hop for each cache/retrieval/check event.
         """
 
-        old_num = np.sum(self.cache_event)
-        event_poke_copy = self.event_pokes.copy()
         hop_idxs = np.digitize(self.event_pokes, self.hops) - 1
         hop_wedges = self.hop_end_wedges[hop_idxs]
         valid_indices = (self.event_sites == hop_wedges)
@@ -263,8 +261,6 @@ class ExpData(object):
         self.cache_event = self.cache_event[valid_indices]
         self.retriev_event = self.retriev_event[valid_indices]
         self.check_event = self.check_event[valid_indices]
-        new_num = np.sum(self.cache_event)
-        print(f"{new_num}/{old_num} caches kept")
 
     def _remove_repeated_events(self):
         """ Removes duplicate events from incorrect labeling. """

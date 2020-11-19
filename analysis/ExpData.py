@@ -123,17 +123,22 @@ class ExpData(object):
         noncrch_hops = np.setdiff1d(noncrch_hops, crch_hops)
         return c_hops, r_hops, ch_hops, noncrch_hops
 
-    def get_hop_windows(self, window):
+    def get_hop_windows(self, window, center_frames=None):
         """
-        Collects hops centered on hops into the site for a given window size.
+        Collects windows centered on hops into the site
+        
+        Args:
+            window: number of frames before and after the center frame to collect
+            center_frames: (hops,) array of frames to align to
 
         Returns:
             (hops, window) array with (-1)-padding where indices extend out of
             range.
         """
 
+        center_frames = self.hops if center_frames is None else center_frames
         hop_windows = np.array([
-            np.arange(hop-window, hop+window+1) for hop in self.hops
+            np.arange(c-window, c+window+1) for c in center_frames
             ])
         hop_windows[hop_windows < 0] = -1
         hop_windows[hop_windows >= self.num_frames] = -1
@@ -221,6 +226,19 @@ class ExpData(object):
         self.hop_ends = np.array(hop_ends)[unique_idxs]
         self.hop_start_wedges = np.array(hop_start_wedges)[unique_idxs]
         self.hop_end_wedges = np.array(hop_end_wedges)[unique_idxs]
+
+    def _remove_super_short_hops(self):
+        """
+        Removes hops that only last a couple of frames. These are likely
+        the result of DLC labeling errors or dropped video frames.
+        """
+
+        valid_hops = np.logical_not((self.hop_ends - self.hop_starts) < 3)
+        self.hops = self.hops[valid_hops]
+        self.hop_starts = self.hop_starts[valid_hops]
+        self.hop_ends = self.hop_ends[valid_hops]
+        self.hop_start_wedges = self.hop_start_wedges[valid_hops]
+        self.hop_end_wedges = self.hop_end_wedges[valid_hops]
 
     def _merge_hops(self, min_gap):
         """
@@ -316,24 +334,4 @@ class ExpData(object):
                     cache_present[in_between_hops, c_site-1] = True
                     break
         self.cache_present = cache_present
-
-    def _remove_super_short_hops(self):
-        """
-        Removes hops that only last a couple of frames. These are likely
-        the result of DLC labeling errors or dropped video frames.
-        """
-
-        valid_hops = np.logical_not((self.hop_ends - self.hop_starts) < 3)
-        self.hops = self.hops[valid_hops]
-        self.hop_starts = self.hop_starts[valid_hops]
-        self.hop_ends = self.hop_ends[valid_hops]
-        self.hop_start_wedges = self.hop_start_wedges[valid_hops]
-        self.hop_end_wedges = self.hop_end_wedges[valid_hops]
-        #valid_events = np.isin(self.event_hops, self.hops)
-        #self.event_sites = self.event_sites[valid_events]
-        #self.event_pokes = self.event_pokes[valid_events]
-        #self.event_hops = self.event_hops[valid_events]
-        #self.cache_event = self.cache_event[valid_events]
-        #self.retriev_event = self.retriev_event[valid_events]
-        #self.check_event = self.check_event[valid_events]
 
